@@ -1,0 +1,235 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<script type = "text/javascript" src="analyzer.js"></script>
+<script type = "text/javascript" src="abg.js"></script>
+<script type = "text/javascript" src="na.js"></script>
+<script type = "text/javascript" src="aki.js"></script>
+<script type = "text/javascript" src="https://www.google.com/jsapi"></script>
+<script type = "text/javascript">
+	google.load("visualization", "1", {packages:["corechart"]});
+</script>
+</head>
+
+<style>
+body {font-family:"Helvetica";}
+</style>
+
+<body>
+<p><b>Lab Clean-Up Tool</b><br>
+by Karandeep Singh</p>
+
+<table cellpadding="10px" style="border:1px dotted black;background-color:lightgray;">
+<tr>
+<td valign="top">
+<!-- input area -->
+<p>View: <input type="radio" name="view" id="all" onclick="javascript:displayLabs();" checked />All
+ <input type="radio" name="view" id="ckdesrd" onclick="javascript:displayLabs();" />CKD/ESRD
+ <input type="radio" name="view" id="aki" onclick="javascript:displayLabs();"/>AKI</p>
+<p><input type="submit" value="Clear Input" onclick="javascript:document.getElementById('input').value='';document.getElementById('input').focus();"></p>
+ <p>Input:<br><textarea autofocus id="input" rows="10" cols="50" onkeyup="javascript:displayLabs();"></textarea></p>
+<p>Output:<br><textarea id="output" rows="20" cols="50" readonly></textarea></p>
+</td>
+<td valign="top" width="100%">
+<div id="displayarea">
+</div>
+</td>
+</tr>
+</table>
+<script type = "text/javascript">
+
+var input = "";
+var output = "";
+
+function isNumber(n) {
+  return !isNaN(parseFloat(n)) && isFinite(n);
+}
+
+var getend = function(beginval)
+{
+	var space = input.indexOf(" ",beginval);
+	var comma = input.indexOf(",",beginval);
+	var nextline = input.indexOf("\n",beginval);
+	
+	var arr = [space,comma,nextline];
+	
+	arr.sort(function(a,b){return a-b});
+	
+	for (n=0;n<3;n++)
+	{
+		if (arr[n]>=0)
+		{
+			return(arr[n]);
+		}
+	}
+	return(false);
+}
+
+var gv = function(name) // short for get value
+{
+	name = name.toUpperCase();
+	
+	var value = (input.toUpperCase()).indexOf(" " + name + " "); // set to beginning of name (i.e. " NA ")
+	var valueEnd;
+	
+	if (value > 0)
+	{
+		value = input.indexOf(" ",value+1)+1; // set to beginning of result (i.e. "140");
+		valueEnd = value;
+		
+		valueEnd = getend(value);
+//		valueEnd = [input.indexOf(" ",value), input.indexOf(",",value), input.indexOf("\n",value)].filter(function(ele){return ele >= 0;}).sort()[0]; // pick lowest value that is >=0
+//		console.log(input.substring(value,valueEnd));
+		return(input.substring(value,valueEnd));	
+	}
+	else {
+		return "";
+	}
+}
+
+var getmostrecent = function(arr)
+{
+	var found;
+	var firstfound = -1;
+	var firstfoundstring = "";
+
+	for (var n = 0; n < arr.length; n++)
+	{
+		found = (input.toUpperCase()).indexOf((" " + arr[n] + " ").toUpperCase());
+		
+		if (found >= 0 && (found < firstfound || firstfound < 0))
+		{
+			firstfound = found;
+			firstfoundstring = arr[n];
+		}		
+	}
+	return firstfoundstring;
+}
+
+
+var displayLabs = function()
+{
+	input = document.getElementById("input").value;
+	output = "";
+	
+	while (input.indexOf("[") > 0)
+	{
+		input = input.substring(0,input.indexOf("["))+input.substring(input.indexOf("]")+1);
+	}
+	while (input.indexOf(" ,")>=0)
+	{ input = input.replace(" ,", ",");}
+	
+	while (input.indexOf(",  ")>=0)
+	{ input = input.replace(",  ",", ");}
+	
+	if (document.getElementById("all").checked)
+	{
+		var inputarray = input.split("\n");
+		var outputarray = new Array();
+		var micro = false;
+		var rads = false;
+		for (n=0; n<inputarray.length; n++)
+		{
+			if (isNumber(inputarray[n].substr(0,1)))
+			{
+				outputarray.push(inputarray[n]);
+			}
+			else if (inputarray[n].indexOf("Specimen: ")>=0)
+			{
+				if (micro == false)
+				{
+					outputarray.push("");
+					outputarray.push("Microbiology");
+					outputarray.push("");
+					micro = true;
+				}
+				outputarray.push(inputarray[n].substr(inputarray[n].indexOf("Collected")+10));
+				while (inputarray[n].length > 1)
+				{
+					n++;
+				}
+				n++;
+				while (inputarray[n].length > 1)
+				{
+					outputarray.push(inputarray[n]);
+					n++;
+				}
+				outputarray.push("");
+			}
+			else if (inputarray[n].indexOf("Type: ")>=0)
+			{
+				if (inputarray[n].indexOf("ECG")>=0)
+					continue;
+					
+				if (rads == false)
+				{
+					outputarray.push("");
+					outputarray.push("Radiology/Studies");
+					outputarray.push("");
+					rads = true;
+				}
+				output = inputarray[n].substr(7);
+				n++;
+				output = inputarray[n].substr(inputarray[n].indexOf(":")+3) + " " + output;
+				n++;
+				while (inputarray[n].indexOf("Scheduled Exam")<0 && inputarray[n].indexOf("IMPRESSION:")<0)
+				{
+					n++;
+				}
+				if (inputarray[n].indexOf("Scheduled Exam")>=0)
+				{
+					outputarray.push(output + ": scheduled");
+					outputarray.push("");
+				}
+				else
+				{
+					outputarray.push(output);
+				//	outputarray.push("Impression: " + inputarray[n].indexOf("IMPRESSION:"+12));
+				//	n++;
+					while (inputarray[n].indexOf("PROVIDERS:")<0)
+					{
+						outputarray.push(inputarray[n]);
+						n++;
+					}
+				}
+			}
+		}
+		output = outputarray.join("\n");
+		
+		while (output.indexOf("\n ")>=0)
+		{ output = output.replace("\n ","\n");}
+		
+		while (output.indexOf("\n\n\n")>=0)
+		{ output = output.replace("\n\n\n","\n\n");}
+		
+	}
+	else if (document.getElementById("ckdesrd").checked)
+	{
+		output = "";
+		output += "Wbc " + gv("wbc") + " Hb " + gv("hgb") + " Plt " + gv("plt") + "\n\n";
+		output += "Na " + gv("na") + " K " + gv("k") + " Cl " + gv("cl") + " HCO3 " + gv("co2") + " BUN " + gv("bun") + " Cr " + gv("cre") + " Glc " + gv("glu") + "\n\n";
+		output += "Anemia Labs: Hb " + gv("hgb") + " Iron " + gv("fe") + " Tsat " + Math.round((parseFloat(gv("fe"))/parseFloat(gv("tibc"))*100)) + "% Ferritin " + gv("fer") + "\n\n";
+		output += "Mineral Metabolism: Ca " + gv("ca") + " Alb " + gv("alb") + " Phos " + gv("phos") + " PTH " + gv("pth") + " 25-Vit D " + gv("25oh-d3");
+	}
+	else if (document.getElementById("aki").checked)
+	{
+		displayakioutput();
+	}
+
+	document.getElementById("output").value = output;
+	document.getElementById("output").select();
+
+	document.getElementById("displayarea").innerHTML = getreport();
+
+	if (isThereAKI())
+	{
+		drawChart();
+	}
+}
+
+displayLabs();
+
+</script>
+
+</body>
+</html>
